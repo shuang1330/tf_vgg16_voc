@@ -17,6 +17,7 @@ class pascal_voc():
         self.num_classes = len(self.classes)
         self.class_to_ind = dict(list(zip(self.classes,
                                 list(range(self.num_classes)))))
+        self.num_image = 0
 
     def load_annotations(self,index):
         ann_file = os.path.join(self.annpath,index+'.xml')
@@ -42,12 +43,11 @@ class pascal_voc():
 
     def read_roidb(self,db_type):
         db_path = os.path.join(self.datapath,'ImageSets/Main')
-        print db_path
         f = open('{}/{}.txt'.format(db_path,db_type))
         file_index = [line[:-1] for line in f.readlines()]
         anns = [self.load_annotations(index) for index in file_index]
-        # print self.load_annotations(file_index[0])
-        anns = [j for i in anns for j in i]
+        anns = [j for i in anns for j in i] # [[a,b],[c]] -> [[a],[b],[c]]
+        self.num_images = len(anns)
         return anns
 
 if __name__=='__main__':

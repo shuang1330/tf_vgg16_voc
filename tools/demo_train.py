@@ -5,7 +5,7 @@ from __future__ import print_function
 import __init__paths
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
 from model.train import train_net
@@ -13,9 +13,13 @@ from dataset.read_roidb import pascal_voc
 import numpy as np
 import sys
 import cv2
+import math
 
 import tensorflow as tf
 from nets.vgg16 import vgg16
+import random
+
+SHUFFLE = True
 
 def one_hot(number):
   lis = np.zeros([21,])
@@ -25,9 +29,23 @@ def one_hot(number):
 def load_batch(db,citer,batch_size,roidb):
     data,label =[],[]
     end_index = (citer+1)*batch_size
+
+    if citer == 0:
+        roidb = random.shuffle(roidb)
+        # return something
+
+    if end_index > db.num_images and SHUFFLE:
+        # get images till num_images and start from the 0 index again
+        end_index = db.num_images
+        rest_images = batch_size-end_index+start
+        data,label = split_roidb(roidb,citer,end_index)
+        # shuffle the roidb
+        roidb = random.shuffle(roidb)
+
     for roi in roidb[citer*batch_size:end_index]:
         path = os.path.join(db.imagepath,roi['index']+'.jpg')
         [x1,y1,x,y] = roi['box']
+        print(x1,x,y1,y)
         data.append(cv2.resize(cv2.imread(path)[y1:y,x1:x,:],(224,224)))
         label.append(roi['gt_class'])
     data = np.asarray(data)
@@ -62,7 +80,9 @@ if __name__ == '__main__':
             gvs = optimizer.compute_gradients(loss)
             train_op = optimizer.apply_gradients(gvs)
             #initialize the network
-            citer = 0
+            iter_in_this_epoch = 0
+            epoch = 0
+            citer = math.ceil(epoch/batch_size) + iter_in_this_epoch
             print('loading %dth batch of images'%(citer))
             train_x, train_y = load_batch(db,citer,batch_size,trainval_roidb)
             print('loaded')
