@@ -76,7 +76,9 @@ if __name__ == '__main__':
     outputdir = OUTPUT_DIR
     db = pascal_voc()
     trainval_roidb = db.read_roidb('trainval')
+    print(db.num_images)
     test_roidb = db.read_roidb('test')
+    print(db.num_images)
     batch_size = 50
     max_iters = 10000
 
@@ -93,6 +95,9 @@ if __name__ == '__main__':
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=tf.reshape(cls_score, [-1, db.num_classes]),
                 labels=labels))
+            variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            for var in variables:
+                tf.summary.histogram('TRAIN/'+var.op.name,var)
             saver = tf.train.Saver()
             #training settings
             lr = tf.Variable(0.001, trainable=False)
@@ -122,7 +127,7 @@ if __name__ == '__main__':
                             (citer,max_iters,epoch,total_loss,lr.eval()))
                 # snapshots
                 if citer >0 and citer % 1000 == 0:
-                    ckpt_prefix = 'vgg_voc_%s'%citer
+                    ckpt_prefix = 'vgg_voc_%s'%int(citer)
                     filename = os.path.join(outputdir,ckpt_prefix+'.ckpt')
                     saver.save(sess,filename)
                     print('saved snapshot in %s'%filename)
