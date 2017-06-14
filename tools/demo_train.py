@@ -20,7 +20,6 @@ import math
 import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
 
-
 SHUFFLE = True
 epoch = 0
 iter_in_this_epoch = 0
