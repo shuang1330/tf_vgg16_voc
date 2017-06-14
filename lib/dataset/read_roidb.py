@@ -33,10 +33,10 @@ class pascal_voc():
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            x1 = int(bbox.find('xmin').text) - 1
+            y1 = int(bbox.find('ymin').text) - 1
+            x2 = int(bbox.find('xmax').text) - 1
+            y2 = int(bbox.find('ymax').text) - 1
             cls = self.class_to_ind[obj.find('name').text.lower().strip()]
             res.append({'index':index,'box':[x1,y1,x2,y2],'gt_class':cls})
         return res
@@ -46,7 +46,7 @@ class pascal_voc():
         f = open('{}/{}.txt'.format(db_path,db_type))
         file_index = [line[:-1] for line in f.readlines()]
         anns = [self.load_annotations(index) for index in file_index]
-        anns = [j for i in anns for j in i] # [[a,b],[c]] -> [[a],[b],[c]]
+        anns = [j for i in anns for j in i]
         self.num_images = len(anns)
         return anns
 
