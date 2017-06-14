@@ -2,4 +2,4 @@ data/
 output/
 .remote-sync.json
 faster_rcnn_models
-
+*.pyc

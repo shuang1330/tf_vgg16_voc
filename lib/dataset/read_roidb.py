@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-import __init__path
 import xml.etree.cElementTree as ET
 import os
 # from tools.path import *
