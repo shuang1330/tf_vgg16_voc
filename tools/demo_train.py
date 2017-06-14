@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import __init__paths
+from path import *
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
@@ -72,14 +73,13 @@ def get_variables_in_checkpoint_file(file_name):
             "with SNAPPY.")
 
 if __name__ == '__main__':
+    rcnn_models = PATH_FASTER_RCNN_MODEL
+    outputdir = OUTPUT_DIR
     db = pascal_voc()
     trainval_roidb = db.read_roidb('trainval')
     test_roidb = db.read_roidb('test')
     batch_size = 50
     max_iters = 10000
-    rcnn_models = \
-     '../faster_rcnn_models/vgg16_faster_rcnn_iter_70000.ckpt'
-    outputdir = '../output'
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -90,8 +90,6 @@ if __name__ == '__main__':
                                     224, 224, 3])
             labels = tf.placeholder(tf.int32,shape=[batch_size,])
             cls_score, cls_prob = vgg16(images,batch_size)
-            print(cls_score.shape)
-            print(labels.shape)
             loss = tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=tf.reshape(cls_score, [-1, db.num_classes]),
@@ -104,17 +102,7 @@ if __name__ == '__main__':
             gvs = optimizer.compute_gradients(loss)
             train_op = optimizer.apply_gradients(gvs)
             #initialize the network
-            sess.run(tf.global_variables_initializer())#snapshots!
-            # see all variables in the graph
-            # variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-            # see all variables in the ckpt file_index
-            # ckpt_vars = get_variables_in_checkpoint_file(rcnn_models)
-            # restorer = tf.train.Saver(variables)
-            # for var in variables:
-                # restorer.restore(sess,rcnn_models)
-                # if var not in ckpt_vars:
-                    # print(var.name)
-            # raise NotImplementedError
+            sess.run(tf.global_variables_initializer())
             saver.restore(sess, rcnn_models) # restore from frcnn models
             # start training
             citer = math.ceil(epoch/batch_size) + iter_in_this_epoch
