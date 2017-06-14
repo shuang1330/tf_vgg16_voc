@@ -1,107 +1,84 @@
+# --------------------------------------------------------
+# Tensorflow Faster R-CNN
+# Licensed under The MIT License [see LICENSE for details]
+# Written by Xinlei Chen
+# --------------------------------------------------------
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import __init__paths
-import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
-os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
-
-from model.train import train_net
-from dataset.read_roidb import pascal_voc
-import numpy as np
-import sys
-import cv2
-import math
-
 import tensorflow as tf
-from nets.vgg16 import vgg16
-import random
+import tensorflow.contrib.slim as slim
+from tensorflow.contrib.slim import losses
+from tensorflow.contrib.slim import arg_scope
+import numpy as np
 
-SHUFFLE = True
+num_classes = 21
 
-def one_hot(number):
-  lis = np.zeros([21,])
-  lis[number] = 1
-  return lis
+def vgg16(images, batch_size, is_training=True,
+            filter_num = [64,64,128,128,256,256,256,512,512,512,512,512,512]):
+    with tf.variable_scope('vgg_16', 'vgg_16',
+        regularizer=tf.contrib.layers.l2_regularizer(0.0005)):
+    #   # select initializers
+    #   if cfg.TRAIN.TRUNCATED:
+    #     initializer = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
+    #     initializer_bbox = tf.truncated_normal_initializer(mean=0.0, stddev=0.001)
+    #   else:
+    #     initializer = tf.random_normal_initializer(mean=0.0, stddev=0.01)
+    #     initializer_bbox = tf.random_normal_initializer(mean=0.0, stddev=0.001)
+        initializer = tf.random_normal_initializer(mean=0.0, stddev=0.01)
+        with tf.variable_scope('conv1'):
+            net = slim.conv2d(images, filter_num[0],
+                [3, 3], trainable=False, scope='conv1_1')  # 64
+            net = slim.conv2d(net, filter_num[1],
+                [3, 3], trainable=False, scope='conv1_2')  # 64
+        net = slim.max_pool2d(net, [2,2], padding = 'SAME', scope='pool1')
+        with tf.variable_scope('conv2'):
+            net = slim.conv2d(net, filter_num[2],
+                [3, 3], trainable = False, scope='conv2_1')  # 128
+            net = slim.conv2d(net, filter_num[3],
+                [3, 3], trainable = False, scope='conv2_2')  # 128
+        net = slim.max_pool2d(net, [2,2], padding = 'SAME', scope = 'pool2')
+        with tf.variable_scope('conv3'):
+            net = slim.conv2d(net, filter_num[4],
+            [3, 3], trainable = is_training, scope='conv3_1')  # 256
+            net = slim.conv2d(net, filter_num[5],
+            [3, 3], trainable = is_training, scope='conv3_2')  # 256
+            net = slim.conv2d(net, filter_num[6],
+            [3, 3], trainable = is_training, scope='conv3_3')  # 256
+        net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool3')
+        with tf.variable_scope('conv4'):
+            net = slim.conv2d(net, filter_num[7],
+            [3, 3], trainable = is_training, scope='conv4_1')  # 512
+            net = slim.conv2d(net, filter_num[8],
+            [3, 3], trainable = is_training, scope='conv4_2')  # 512
+            net = slim.conv2d(net, filter_num[9],
+            [3, 3], trainable = is_training, scope='conv4_3')  # 512
+        net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool4')
+        with tf.variable_scope('conv5'):
+            net = slim.conv2d(net, filter_num[10],
+            [3, 3], trainable = is_training, scope='conv5_1')  # 512
+            net = slim.conv2d(net, filter_num[11],
+            [3, 3], trainable = is_training, scope='conv5_2')  # 512
+            net = slim.conv2d(net, filter_num[12],
+            [3, 3], trainable = is_training, scope='conv5_3')  # 512
+        net = slim.max_pool2d(net, [2,2], padding='SAME', scope='pool5')
+        [a,b,c,d] = net.get_shape().as_list()
+        pool5_flat = slim.flatten(net, [batch_size,b*c*d], scope='flatten')
+        fc6 = slim.fully_connected(pool5_flat, 4096, scope='fc6')
+        if is_training:
+            fc6 = slim.dropout(fc6, scope='dropout6')
+        fc7 = slim.fully_connected(fc6, 4096, scope='fc7')
+        if is_training:
+            fc7 = slim.dropout(fc7, scope='dropout7')
+        cls_score = slim.fully_connected(fc7, num_classes,
+                                    weights_initializer=initializer,
+                                    trainable=is_training,
+                                    activation_fn=None, scope='cls_score')
+        cls_prob = tf.nn.softmax(cls_score, name="cls_prob")
 
-def load_batch(db,citer,batch_size,roidb):
-    data,label =[],[]
-    end_index = (citer+1)*batch_size
+        # predictions["cls_score"] = cls_score
+        # predictions["cls_prob"] = cls_prob
+        # score_summaries.update(predictions)
 
-    if citer == 0:
-        roidb = random.shuffle(roidb)
-        # return something
-
-    if end_index > db.num_images and SHUFFLE:
-        # get images till num_images and start from the 0 index again
-        end_index = db.num_images
-        rest_images = batch_size-end_index+start
-        data,label = split_roidb(roidb,citer,end_index)
-        # shuffle the roidb
-        roidb = random.shuffle(roidb)
-
-    for roi in roidb[citer*batch_size:end_index]:
-        path = os.path.join(db.imagepath,roi['index']+'.jpg')
-        [x1,y1,x,y] = roi['box']
-        print(x1,x,y1,y)
-        data.append(cv2.resize(cv2.imread(path)[y1:y,x1:x,:],(224,224)))
-        label.append(roi['gt_class'])
-    data = np.asarray(data)
-    label = np.asarray(label)
-    return data,label
-
-if __name__ == '__main__':
-    db = pascal_voc()
-    trainval_roidb = db.read_roidb('trainval')
-    test_roidb = db.read_roidb('test')
-    batch_size = 50
-    max_iters = 1000
-
-    with tf.Session().as_default() as sess:
-        with sess.graph.as_default() as g:
-            # build the graph
-            images = tf.placeholder(tf.float32,shape=[batch_size,
-                                    224, 224, 3])
-            labels = tf.placeholder(tf.int32,shape=[batch_size,])
-            cls_score, cls_prob = vgg16(images,batch_size)
-            print(cls_score.shape)
-            print(labels.shape)
-            loss = tf.reduce_mean(
-                tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=tf.reshape(cls_score, [-1, db.num_classes]),
-                labels=labels))
-            saver = tf.train.Saver()
-            #training settings
-            lr = tf.Variable(0.001, trainable=False)
-            momentum = tf.Variable(0.9, trainable=False)
-            optimizer = tf.train.MomentumOptimizer(lr,momentum)
-            gvs = optimizer.compute_gradients(loss)
-            train_op = optimizer.apply_gradients(gvs)
-            #initialize the network
-            iter_in_this_epoch = 0
-            epoch = 0
-            citer = math.ceil(epoch/batch_size) + iter_in_this_epoch
-            print('loading %dth batch of images'%(citer))
-            train_x, train_y = load_batch(db,citer,batch_size,trainval_roidb)
-            print('loaded')
-            sess.run(tf.global_variables_initializer())#snapshots!
-            #start training
-            feed_dict = {images:train_x,labels:train_y}
-            while citer< max_iters+1:
-                cls_score,cls_prob,loss,_ = sess.run([cls_score,
-                                        cls_prob,
-                                        loss,
-                                        train_op],
-                                        feed_dict=feed_dict)
-                # display training info
-                if citer % 100 == 0:
-                    print('iter:%d/%d\n>>>loss:%.6f, lr:%f'%
-                            (citer,max_iters,loss,lr.eval()))
-                #snapshots
-                if citers % 1000 == 0:
-                    filename = os.path.join()
-                    saver.save(sess.filename)
-
-                citer += 1
+    return cls_score, cls_prob
