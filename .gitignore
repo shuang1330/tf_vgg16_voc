@@ -4,3 +4,4 @@ output/
 faster_rcnn_models
 *.pyc
 acts/*
+*.png

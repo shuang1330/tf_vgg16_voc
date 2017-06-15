@@ -76,9 +76,11 @@ if __name__ == '__main__':
     outputdir = OUTPUT_DIR
     db = pascal_voc()
     trainval_roidb = db.read_roidb('trainval')
-    print(db.num_images)
-    test_roidb = db.read_roidb('test')
-    print(db.num_images)
+    # print(db.num_images)
+    testdb = pascal_voc()
+    test_roidb = testdb.read_roidb('test')
+    # print(db.num_images)
+    # print(testdb.num_images)
     batch_size = 50
     max_iters = 10000
 
@@ -87,9 +89,9 @@ if __name__ == '__main__':
     with tf.Session(config=config).as_default() as sess:
         with sess.graph.as_default() as g:
             # build the graph
-            images = tf.placeholder(tf.float32,shape=[batch_size,
+            images = tf.placeholder(tf.float32,shape=[None,
                                     224, 224, 3])
-            labels = tf.placeholder(tf.int32,shape=[batch_size,])
+            labels = tf.placeholder(tf.int32,shape=[None,])
             cls_score, cls_prob = vgg16(images,batch_size)
             loss = tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -100,11 +102,11 @@ if __name__ == '__main__':
                 tf.summary.histogram('TRAIN/'+var.op.name,var)
             saver = tf.train.Saver()
             #training settings
-            lr = tf.Variable(0.001, trainable=False)
-            momentum = tf.Variable(0.9, trainable=False)
-            optimizer = tf.train.MomentumOptimizer(lr,momentum)
-            gvs = optimizer.compute_gradients(loss)
-            train_op = optimizer.apply_gradients(gvs)
+            lr_1 = tf.Variable(0.001, trainable=False)
+            momentum_1 = tf.Variable(0.9, trainable=False)
+            optimizer_1 = tf.train.MomentumOptimizer(lr_1,momentum_1)
+            gvs = optimizer_1.compute_gradients(loss)
+            train_op = optimizer_1.apply_gradients(gvs)
             #initialize the network
             sess.run(tf.global_variables_initializer())
             saver.restore(sess, rcnn_models) # restore from frcnn models
@@ -124,12 +126,18 @@ if __name__ == '__main__':
                 # display training info
                 if citer % 50 == 0:
                     print('iter:%d/%d, epoch:%d\n>>>loss:%.6f, lr:%f'%
-                            (citer,max_iters,epoch,total_loss,lr.eval()))
+                            (citer,max_iters,epoch,total_loss,lr_1.eval()))
                 # snapshots
-                if citer >0 and citer % 1000 == 0:
-                    ckpt_prefix = 'vgg_voc_%s'%int(citer)
-                    filename = os.path.join(outputdir,ckpt_prefix+'.ckpt')
-                    saver.save(sess,filename)
-                    print('saved snapshot in %s'%filename)
-
+                if citer >0 and citer % 500 == 0:
+                    # ckpt_prefix = 'vgg_voc_%s'%int(citer)
+                    # filename = os.path.join(outputdir,ckpt_prefix+'.ckpt')
+                    # saver.save(sess,filename)
+                    # print('saved snapshot in %s'%filename)
+                    # display test info
+                    print('testing the ')
+                    test_x, test_y = load_batch(testdb,
+                                        0,0,50,test_roidb)
+                    feed_dict_test = {images:test_x,labels:test_y}
+                    test_loss= sess.run(loss,feed_dict=feed_dict_test)
+                    print('test loss: %.4f'%total_loss)
                 citer += 1

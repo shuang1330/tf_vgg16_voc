@@ -6,7 +6,7 @@ import __init__paths
 from path import *
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
 from model.train import train_net
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     pre_models = '../output/vgg_voc_1000.0.ckpt'
     outputdir = OUTPUT_DIR
     db = pascal_voc()
-    test_roidb = db.read_roidb('test')
+    test_roidb = db.read_roidb('trainval')
     print('%d images in the test dataset'%db.num_images)
     max_iters = 10000
     batch_size = 1
@@ -44,7 +44,7 @@ if __name__ == '__main__':
                 tf.summary.histogram('TRAIN/'+var.op.name,var)
             saver = tf.train.Saver()
             #load the weights
-            sess.run(tf.global_variables_initializer())
+            # sess.run(tf.global_variables_initializer())
             saver.restore(sess, pre_models)
             #test the nets
             tp = 0.0
