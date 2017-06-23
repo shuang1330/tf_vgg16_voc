@@ -22,3 +22,7 @@ class Network():
               labels=labels))
             self.global_variables = \
                 tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+    def train_step():
+        pass
+    def test_im():
+        pass

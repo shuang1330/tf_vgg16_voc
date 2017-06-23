@@ -73,66 +73,61 @@ class wrapper():
           print("It's likely that your checkpoint file has been compressed "
                 "with SNAPPY.")
 
-    def train(self,sess,rcnn_models,outputdir,db,batch_size,max_iters):
+    def train(self,sess,net,rcnn_models,outputdir,db,batch_size,max_iters):
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         with tf.Session(config=config).as_default() as sess:
-            with sess.graph.as_default() as g:
-                # build the graph
-                images = tf.placeholder(tf.float32,shape=[None,
-                                        224, 224, 3])
-                labels = tf.placeholder(tf.int32,shape=[None,])
-                cls_score, cls_prob = vgg16(images,batch_size)
-                loss = tf.reduce_mean(
-                    tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    logits=tf.reshape(cls_score, [-1, db.num_classes]),
-                    labels=labels))
-                variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                for var in variables:
-                    tf.summary.histogram('TRAIN/'+var.op.name,var)
-                saver = tf.train.Saver()
-                #training settings
-                lr_1 = tf.Variable(0.0005, trainable=False) # 0.001
-                momentum_1 = tf.Variable(0.5, trainable=False) # 0.9
-                optimizer_1 = tf.train.MomentumOptimizer(lr_1,momentum_1)
-                gvs = optimizer_1.compute_gradients(loss)
-                train_op = optimizer_1.apply_gradients(gvs)
-                #initialize the network
-                sess.run(tf.global_variables_initializer())
-                saver.restore(sess, rcnn_models) # restore from frcnn models
-                # start training
-                citer = math.ceil(epoch/batch_size) + iter_in_this_epoch
-                while citer< max_iters+1:
-                    # print('loading %dth batch of images'%(citer))
-                    train_x, train_y = load_batch(db,epoch,iter_in_this_epoch,
-                        batch_size,trainval_roidb)
-                    # print('loaded')
-                    feed_dict = {images:train_x,labels:train_y}
-                    score,prob,total_loss,_ = sess.run([cls_score,
-                                            cls_prob,
-                                            loss,
-                                            train_op],
-                                            feed_dict=feed_dict)
-                    # display training info
-                    if citer % 50 == 0:
-                        print('iter:%d/%d, epoch:%d\n>>>loss:%.6f, lr:%f'%
-                                (citer,max_iters,epoch,total_loss,lr_1.eval()))
-                    # snapshots
-                    if citer % 500 == 0:
-                        ckpt_prefix = 'vgg_voc_%s'%int(citer)
-                        filename = os.path.join(outputdir,ckpt_prefix+'.ckpt')
-                        saver.save(sess,filename)
-                        print('saved snapshot in %s'%filename)
-                        # display test info
-                        test_x, test_y = load_batch(testdb,
-                                            0,0,128,test_roidb)
-                        feed_dict_test = {images:test_x,labels:test_y}
-                        test_loss= sess.run(loss,feed_dict=feed_dict_test)
-                        print('  test loss: %.4f'%test_loss)
+            net.build_network(db)
+            for var in net.global_variables:
+                tf.summary.histogram('TRAIN/'+var.op.name,var)
+            saver = tf.train.Saver()
+            #training settings
+            lr_1 = tf.Variable(0.0005, trainable=False) # 0.001
+            momentum_1 = tf.Variable(0.5, trainable=False) # 0.9
+            optimizer_1 = tf.train.MomentumOptimizer(lr_1,momentum_1)
+            gvs = optimizer_1.compute_gradients(loss)
+            train_op = optimizer_1.apply_gradients(gvs)
+            #initialize the network
+            sess.run(tf.global_variables_initializer())
+            saver.restore(sess, rcnn_models) # restore from frcnn models
+            # start training
+            citer = math.ceil(epoch/batch_size) + iter_in_this_epoch
+            while citer< max_iters+1:
+                # print('loading %dth batch of images'%(citer))
+                train_x, train_y = load_batch(db,epoch,iter_in_this_epoch,
+                    batch_size,trainval_roidb)
+                # print('loaded')
+                feed_dict = {net.images:train_x,net.labels:train_y}
+                score,prob,total_loss,_ = \
+                 sess.run([net.predictions[cls_score],
+                            net.predictions[cls_prob],
+                            net.loss,
+                            train_op],
+                            feed_dict=feed_dict)
+                # display training info
+                if citer % 50 == 0:
+                    print('iter:%d/%d, epoch:%d\n>>>loss:%.6f, lr:%f'%
+                            (citer,max_iters,epoch,total_loss,lr_1.eval()))
+                # snapshots
+                if citer % 500 == 0:
+                    ckpt_prefix = 'vgg_voc_%s'%int(citer)
+                    filename = os.path.join(outputdir,ckpt_prefix+'.ckpt')
+                    saver.save(sess,filename)
+                    print('saved snapshot in %s'%filename)
+                    # display test info
+                    # test_x, test_y = load_batch(testdb,
+                    #                     0,0,128,test_roidb)
+                    # feed_dict_test = {images:test_x,labels:test_y}
+                    # test_loss= sess.run(loss,feed_dict=feed_dict_test)
+                    # print('  test loss: %.4f'%test_loss)
+
+
 def train_net(sess,rcnn_models,outputdir,db,batch_size,max_iters):
     # rcnn_models = PATH_FASTER_RCNN_MODEL
     rcnn_models = '../output/vgg_voc_4000.0.ckpt'
     outputdir = OUTPUT_DIR
     db = pascal_voc()
     roidb = db.read_roidb('trainval')
-    wrapper.train(sess,rcnn_models,outputdir,db,roidb,batch_size,max_iters)
+
+    net = Network()
+    wrapper.train(sess,net,rcnn_models,outputdir,db,roidb,batch_size,max_iters)
