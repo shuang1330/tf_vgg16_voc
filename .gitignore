@@ -1,3 +1,6 @@
+tools/activations_res/*
+events.out*
+tensorboard/*
 data/
 output/
 .remote-sync.json
