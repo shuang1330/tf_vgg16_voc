@@ -6,10 +6,9 @@ import __init__paths
 from path import *
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
-from model.train import train_net
 from nets.vgg16 import vgg16
 from dataset.read_roidb import pascal_voc
 import numpy as np
@@ -72,8 +71,10 @@ def get_variables_in_checkpoint_file(file_name):
             "with SNAPPY.")
 
 if __name__ == '__main__':
-    rcnn_models = PATH_FASTER_RCNN_MODEL
+    # rcnn_models = PATH_FASTER_RCNN_MODEL
+    rcnn_models = '../faster_rcnn_models/vgg16_faster_rcnn_iter_70000.ckpt'
     outputdir = OUTPUT_DIR
+    tbdir = '../tensorboard'
     db = pascal_voc()
     trainval_roidb = db.read_roidb('trainval')
     # print(db.num_images)
@@ -81,7 +82,7 @@ if __name__ == '__main__':
     test_roidb = testdb.read_roidb('test')
     # print(db.num_images)
     # print(testdb.num_images)
-    batch_size = 50
+    batch_size = 128
     max_iters = 10000
 
     config = tf.ConfigProto()
@@ -97,13 +98,22 @@ if __name__ == '__main__':
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=tf.reshape(cls_score, [-1, db.num_classes]),
                 labels=labels))
-            variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-            for var in variables:
-                tf.summary.histogram('TRAIN/'+var.op.name,var)
-            saver = tf.train.Saver()
+            tf.summary.histogram('SCORE/loss',loss)
+            var_to_restore = []
+            for var in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
+                # print(var.name)
+                if 'weights' in var.name:
+                    var_to_restore.append(var)
+                #     print(var.name)
+                # if 'var.name'.endswith('biases'):
+                    # print(var.name)
+            # raise NotImplemented
+                # tf.summary.histogram('TRAIN/'+var.op.name,var) # summaries
+            summary_op = tf.summary.merge_all()
+            saver = tf.train.Saver(var_list=var_to_restore)
             #training settings
-            lr_1 = tf.Variable(0.001, trainable=False)
-            momentum_1 = tf.Variable(0.9, trainable=False)
+            lr_1 = tf.Variable(0.0005, trainable=False) # 0.001
+            momentum_1 = tf.Variable(0.01, trainable=False) # 0.9
             optimizer_1 = tf.train.MomentumOptimizer(lr_1,momentum_1)
             gvs = optimizer_1.compute_gradients(loss)
             train_op = optimizer_1.apply_gradients(gvs)
@@ -112,32 +122,44 @@ if __name__ == '__main__':
             saver.restore(sess, rcnn_models) # restore from frcnn models
             # start training
             citer = math.ceil(epoch/batch_size) + iter_in_this_epoch
+            # write summaries
+            writer = tf.summary.FileWriter(tbdir, g)
             while citer< max_iters+1:
                 # print('loading %dth batch of images'%(citer))
                 train_x, train_y = load_batch(db,epoch,iter_in_this_epoch,
                     batch_size,trainval_roidb)
                 # print('loaded')
                 feed_dict = {images:train_x,labels:train_y}
-                score,prob,total_loss,_ = sess.run([cls_score,
-                                        cls_prob,
-                                        loss,
-                                        train_op],
-                                        feed_dict=feed_dict)
+                if citer%50 != 0:
+                    score,prob,total_loss, _ = sess.run([cls_score,
+                                            cls_prob,
+                                            loss,
+                                            train_op],
+                                            feed_dict=feed_dict)
                 # display training info
                 if citer % 50 == 0:
-                    print('iter:%d/%d, epoch:%d\n>>>loss:%.6f, lr:%f'%
-                            (citer,max_iters,epoch,total_loss,lr_1.eval()))
+                    score,prob,total_loss, summaries, _ = \
+                                    sess.run([cls_score,
+                                            cls_prob,
+                                            loss,
+                                            summary_op,
+                                            train_op],
+                                            feed_dict=feed_dict)
+                    # write summaries
+                    # writer.add_summary(summaries, float(citer))
+                    print('>>>iter:%d/%d, epoch:%d, lr:%f\n  training loss:%.6f'
+                        %(citer,max_iters,epoch,lr_1.eval(),total_loss))
                 # snapshots
-                if citer >0 and citer % 500 == 0:
+                if citer % 50 == 0:
                     # ckpt_prefix = 'vgg_voc_%s'%int(citer)
                     # filename = os.path.join(outputdir,ckpt_prefix+'.ckpt')
                     # saver.save(sess,filename)
                     # print('saved snapshot in %s'%filename)
                     # display test info
-                    print('testing the ')
                     test_x, test_y = load_batch(testdb,
-                                        0,0,50,test_roidb)
+                                        0,0,128,test_roidb)
                     feed_dict_test = {images:test_x,labels:test_y}
                     test_loss= sess.run(loss,feed_dict=feed_dict_test)
-                    print('test loss: %.4f'%total_loss)
+                    print('  test loss: %.4f'%test_loss)
                 citer += 1
+            writer.close()
