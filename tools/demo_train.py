@@ -70,6 +70,9 @@ def get_variables_in_checkpoint_file(file_name):
       print("It's likely that your checkpoint file has been compressed "
             "with SNAPPY.")
 
+def activations_decay_generator(x):
+    return tf.nn.sigmoid(x)(1-tf.nn.sigmoid(x))
+
 if __name__ == '__main__':
     # rcnn_models = PATH_FASTER_RCNN_MODEL
     rcnn_models = '../faster_rcnn_models/vgg16_faster_rcnn_iter_70000.ckpt'
@@ -84,6 +87,8 @@ if __name__ == '__main__':
     # print(testdb.num_images)
     batch_size = 128
     max_iters = 10000
+    # # define the rank of activations
+    # act_sum = []
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -93,11 +98,18 @@ if __name__ == '__main__':
             images = tf.placeholder(tf.float32,shape=[None,
                                     224, 224, 3])
             labels = tf.placeholder(tf.int32,shape=[None,])
-            cls_score, cls_prob = vgg16(images,batch_size)
+            cls_score, cls_prob, act_summaries = vgg16(images,batch_size,ACT=True)
             loss = tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=tf.reshape(cls_score, [-1, db.num_classes]),
                 labels=labels))
+
+            # # added loss for activations
+            # loss_act = tf.Variable(0,name='LOSS_ACT')
+            # for index,act in enumerate(act_summaries):
+            #     decay = activations_decay_generator(act_sum[index])
+            #     loss_act += decay*tf.nn.l1_loss(act)
+
             tf.summary.histogram('SCORE/loss',loss)
             var_to_restore = []
             for var in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
