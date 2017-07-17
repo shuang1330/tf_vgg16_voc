@@ -6,10 +6,9 @@ import __init__paths
 from path import *
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
-from model.train import train_net
 from nets.vgg16 import vgg16
 from dataset.read_roidb import pascal_voc
 import numpy as np
@@ -22,12 +21,11 @@ from tensorflow.python import pywrap_tensorflow
 
 
 if __name__ == '__main__':
-    pre_models = '../output/vgg_voc_1000.0.ckpt'
+    pre_models = '../faster_rcnn_models/vgg16_faster_rcnn_iter_70000.ckpt'
     outputdir = OUTPUT_DIR
     db = pascal_voc()
-    test_roidb = db.read_roidb('trainval')
+    test_roidb = db.read_roidb('test')
     print('%d images in the test dataset'%db.num_images)
-    max_iters = 10000
     batch_size = 1
 
     config = tf.ConfigProto()
@@ -38,13 +36,10 @@ if __name__ == '__main__':
             images = tf.placeholder(tf.float32,shape=[batch_size,
                                     224, 224, 3])
             labels = tf.placeholder(tf.int32,shape=[batch_size,])
-            cls_score,cls_prob,act_summaries = vgg16(images,batch_size,True)
+            cls_score,cls_prob,act_summaries = vgg16(images,batch_size,ACT=True)
             variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-            for var in variables:
-                tf.summary.histogram('TRAIN/'+var.op.name,var)
             saver = tf.train.Saver()
             #load the weights
-            # sess.run(tf.global_variables_initializer())
             saver.restore(sess, pre_models)
             #test the nets
             tp = 0.0
@@ -66,7 +61,7 @@ if __name__ == '__main__':
                     print('processing %dth image'%(i))
 
                 # write acts
-                act_file = open('../acts/%s.txt'%i,'w')
+                act_file = open('../acts_NoTraining/%s.txt'%i,'w')
                 act_file.write('%s\n'%str(test_y[0]))
                 act_file.write('\n')
                 sum_act = []
