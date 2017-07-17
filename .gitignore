@@ -1,3 +1,4 @@
+acts_NoTraining/*
 tools/activations_res/*
 events.out*
 tensorboard/*

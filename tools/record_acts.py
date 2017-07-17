@@ -2,7 +2,7 @@ import os.path
 import matplotlib.pyplot as plt
 import numpy as np
 
-path = '../acts'
+path = '../acts_NoTraining'
 num_files = len([f for f in os.listdir(path)
                 if os.path.isfile(os.path.join(path, f))])
 CLASSES = ('__background__',
@@ -32,7 +32,7 @@ print 'loading data from text files'
 predictions = np.zeros([len(os.listdir(path)),21])
 for file_ind,filename in enumerate(os.listdir(path)):
 #     print 'processing file {}'.format(filename)
-    clas = []n
+    clas = []
     acts = []
     f = open('/'.join([path,filename]),'r')
     act_ind = 0
@@ -74,7 +74,7 @@ for i in range(13):
     print arr_hm_new
     # save heatmap information to a dictionary
     acts_vs_cls_recorder['%dth_acts'%(i+1)] = arr_hm_new
-save_path = './activations_res/res.npy'
+save_path = './activations_res/res_NoTraining.npy'
 
 np.save(save_path,acts_vs_cls_recorder)
 print 'heatmap information saved in %s'%save_path
